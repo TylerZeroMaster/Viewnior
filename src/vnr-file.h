@@ -31,6 +31,19 @@ G_BEGIN_DECLS
 #define VNR_IS_FILE_CLASS(klass)  (G_TYPE_CHECK_CLASS_TYPE ((klass), VNR_TYPE_FILE))
 #define VNR_FILE_GET_CLASS(obj)   (G_TYPE_INSTANCE_GET_CLASS ((obj), VNR_TYPE_FILE, VnrFileClass))
 
+typedef enum {
+    SORT_ASC   = 0,
+    SORT_DESC  = 1<<8
+} SortDirection;
+
+typedef enum {
+    SORT_NONE               = 0,
+    SORT_DISPLAY_NAME       = 1<<1              | SORT_ASC,
+    SORT_MOD_TIME           = 1<<2              | SORT_ASC,
+    SORT_DISPLAY_NAME_DESC  = SORT_DISPLAY_NAME | SORT_DESC,
+    SORT_MOD_TIME_DESC      = SORT_MOD_TIME     | SORT_DESC,
+} SortType;
+
 typedef struct _VnrFile VnrFile;
 typedef struct _VnrFileClass VnrFileClass;
 
@@ -39,6 +52,7 @@ struct _VnrFile {
 
     const gchar *display_name;
     const gchar *display_name_collate;
+    const GDateTime *mod_time;
     const gchar *path;
 };
 
@@ -52,9 +66,10 @@ GType   vnr_file_get_type   (void) G_GNUC_CONST;
 VnrFile *vnr_file_new ();
 
 /* Actions */
-void    vnr_file_load_uri_list      (GSList *uri_list, GList **file_list, gboolean include_hidden, GError **error);
-void    vnr_file_load_single_uri    (char *p_uri, GList **file_list, gboolean include_hidden, GError **error);
-
+void    vnr_file_load_uri_list      (GSList *uri_list, GList **file_list, gboolean include_hidden, SortType sort_type, GError **error);
+void    vnr_file_load_single_uri    (char *p_uri, GList **file_list, gboolean include_hidden, SortType sort_type, GError **error);
+GList   *vnr_file_list_sort         (GList *file_list, gint sort);
 
 G_END_DECLS
+
 #endif /* __VNR_FILE_H__ */

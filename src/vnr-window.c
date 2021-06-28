@@ -89,6 +89,13 @@ const gchar *ui_definition = "<ui>"
       "<menuitem action=\"ViewToolbar\"/>"
       "<menuitem action=\"ViewScrollbar\"/>"
       "<menuitem action=\"ViewStatusbar\"/>"
+      "<menu action=\"ArrangeItems\">"
+        "<menuitem action=\"SortDisplayName\"/>"
+        "<menuitem action=\"SortModTime\"/>"
+        "<separator/>"
+        "<menuitem action=\"SortAscending\"/>"
+        "<menuitem action=\"SortDescending\"/>"
+      "</menu>"
       "<separator/>"
       "<menuitem action=\"ViewZoomIn\"/>"
       "<menuitem action=\"ViewZoomOut\"/>"
@@ -146,6 +153,14 @@ const gchar *ui_definition = "<ui>"
       "<menuitem action=\"ViewToolbar\"/>"
       "<menuitem action=\"ViewScrollbar\"/>"
       "<menuitem action=\"ViewStatusbar\"/>"
+      "<menu action=\"ArrangeItems\">"
+        "<menuitem action=\"SortDisplayName\"/>"
+        "<menuitem action=\"SortModTime\"/>"
+        "<separator/>"
+        "<menuitem action=\"SortAscending\"/>"
+        "<menuitem action=\"SortDescending\"/>"
+      "</menu>"
+      "<separator/>"
       "<menuitem name=\"Fullscreen\" action=\"ViewFullscreen\"/>"
       "<menuitem name=\"Slideshow\" action=\"ViewSlideshow\"/>"
       "<separator/>"
@@ -1040,6 +1055,50 @@ vnr_window_cmd_open_menu (GtkToggleAction *action, VnrWindow *window)
     return;
 }
 
+static inline void
+vnr_window_update_file_order(VnrWindow *window, SortType sort_type, SortDirection sort_direction)
+{
+    VnrFile *current_file = VNR_FILE(window->file_list->data);
+    
+    GList *sorted = vnr_file_list_sort(g_list_first(window->file_list), 
+                                                    sort_type | sort_direction);
+    sorted = g_list_find(sorted, current_file);
+    
+    g_assert(sorted != NULL);
+    
+    vnr_window_set_list(window, sorted, FALSE);
+    vnr_window_open(window, FALSE);
+}
+
+// Action is the first radio action in the group, selected is the one just clicked, user_data is the VnrWindow
+static void
+vnr_window_cmd_change_sort_type(GtkRadioAction *sort_type_action, GtkRadioAction *selected, gpointer user_data)
+{
+    VnrWindow *window = VNR_WINDOW(user_data);
+    
+    GtkRadioAction *sort_direction_action = GTK_RADIO_ACTION(
+        gtk_action_group_get_action(window->actions_image, "SortAscending"));
+        
+    SortType sort_type = gtk_radio_action_get_current_value(sort_type_action);
+    SortDirection sort_direction = gtk_radio_action_get_current_value(sort_direction_action);
+
+    vnr_window_update_file_order(window, sort_type, sort_direction);
+}
+
+static void
+vnr_window_cmd_change_sort_direction(GtkRadioAction *sort_direction_action, GtkRadioAction *selected, gpointer user_data)
+{
+    VnrWindow *window = VNR_WINDOW(user_data);
+    
+    GtkRadioAction *sort_type_action = GTK_RADIO_ACTION(
+        gtk_action_group_get_action(window->actions_image, "SortDisplayName"));
+        
+    SortType sort_type = gtk_radio_action_get_current_value(sort_type_action);
+    SortDirection sort_direction = gtk_radio_action_get_current_value(sort_direction_action);
+
+    vnr_window_update_file_order(window, sort_type, sort_direction);
+}
+
 static void
 vnr_window_cmd_main_menu_hidden (GtkWidget *widget, gpointer user_data)
 {
@@ -1834,6 +1893,7 @@ static const GtkActionEntry action_entries_window[] = {
     { "File",  NULL, N_("_File") },
     { "Edit",  NULL, N_("_Edit") },
     { "View",  NULL, N_("_View") },
+    { "ArrangeItems",  NULL, "Arra_nge Items" },
     { "Image",  NULL, N_("_Image") },
     { "Go",    NULL, N_("_Go") },
     { "Help",  NULL, N_("_Help") },
@@ -1952,6 +2012,20 @@ static const GtkToggleActionEntry toggle_entries_window[] = {
     { "ViewStatusbar", NULL, N_("Statusbar"), NULL,
       N_("Show Statusbar"),
       G_CALLBACK (vnr_window_cmd_statusbar) },
+};
+
+static const GtkRadioActionEntry radio_entries_sort_type[] = {
+    { "SortDisplayName", NULL, "By Name", NULL,
+      "Sort by name", SORT_DISPLAY_NAME },
+    { "SortModTime", NULL, "By Modification Date", NULL,
+      "Sort by modification date", SORT_MOD_TIME },
+};
+
+static const GtkRadioActionEntry radio_entries_sort_direction[] = {
+    { "SortAscending", NULL, "Ascending", NULL,
+      "Sort in ascending order", SORT_ASC },
+    { "SortDescending", NULL, "Descending", NULL,
+      "Sort in descending order", SORT_DESC },
 };
 
 static const GtkToggleActionEntry toggle_entries_collection[] = {
@@ -2230,7 +2304,20 @@ vnr_window_init (VnrWindow * window)
                                          toggle_entries_image,
                                          G_N_ELEMENTS (toggle_entries_image),
                                          window);
-
+    /******Sorting Actions******/
+    gtk_action_group_add_radio_actions (window->actions_image,
+                                         radio_entries_sort_type,
+                                         G_N_ELEMENTS (radio_entries_sort_type),
+                                         SORT_DISPLAY_NAME,
+                                         G_CALLBACK(vnr_window_cmd_change_sort_type),
+                                         window);
+    gtk_action_group_add_radio_actions (window->actions_image,
+                                         radio_entries_sort_direction,
+                                         G_N_ELEMENTS (radio_entries_sort_direction),
+                                         SORT_ASC,
+                                         G_CALLBACK(vnr_window_cmd_change_sort_direction),
+                                         window);
+    /**********/
     gtk_ui_manager_insert_action_group (window->ui_mngr,
                                         window->actions_image, 0);
     /**********/
@@ -2539,14 +2626,24 @@ vnr_window_open_from_list(VnrWindow *window, GSList *uri_list)
 {
     GList *file_list = NULL;
     GError *error = NULL;
+    
+    GtkRadioAction *sort_type_action = GTK_RADIO_ACTION(
+        gtk_action_group_get_action(window->actions_image, "SortDisplayName"));
+    GtkRadioAction *sort_direction_action = GTK_RADIO_ACTION(
+        gtk_action_group_get_action(window->actions_image, "SortAscending"));
+        
+    SortType sort_type = gtk_radio_action_get_current_value(sort_type_action);
+    SortDirection sort_direction = gtk_radio_action_get_current_value(sort_direction_action);
 
     if (g_slist_length(uri_list) == 1)
-    {
-        vnr_file_load_single_uri (uri_list->data, &file_list, window->prefs->show_hidden, &error);
+    {   
+        vnr_file_load_single_uri (uri_list->data, &file_list, 
+            window->prefs->show_hidden, sort_type | sort_direction, &error);
     }
     else
     {
-        vnr_file_load_uri_list (uri_list, &file_list, window->prefs->show_hidden, &error);
+        vnr_file_load_uri_list (uri_list, &file_list, 
+            window->prefs->show_hidden, sort_type | sort_direction, &error);
     }
 
     if(error != NULL && file_list != NULL)

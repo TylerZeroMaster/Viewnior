@@ -119,16 +119,56 @@ vnr_file_set_display_name(VnrFile *vnr_file, char *display_name)
     vnr_file->display_name_collate = g_utf8_collate_key_for_filename(display_name, -1);
 }
 
-
 static gint
-vnr_file_list_compare(gconstpointer a, gconstpointer b, gpointer user_data){
+vnr_file_list_compare_dn(gconstpointer a, gconstpointer b)
+{
     return g_strcmp0(VNR_FILE(a)->display_name_collate,
                      VNR_FILE(b)->display_name_collate);
 }
 
+static gint
+vnr_file_list_compare_dn_desc(gconstpointer a, gconstpointer b)
+{
+    return g_strcmp0(VNR_FILE(a)->display_name_collate,
+                     VNR_FILE(b)->display_name_collate) * -1;
+}
+
+static gint
+vnr_file_list_compare_mt(gconstpointer a, gconstpointer b)
+{
+    return g_date_time_compare(VNR_FILE(a)->mod_time,
+                               VNR_FILE(b)->mod_time);
+}
+
+static gint
+vnr_file_list_compare_mt_desc(gconstpointer a, gconstpointer b)
+{
+    return g_date_time_compare(VNR_FILE(a)->mod_time,
+                               VNR_FILE(b)->mod_time) * -1;
+}
+
+GList *
+vnr_file_list_sort(GList *file_list, gint sort_type)
+{
+    switch(sort_type)
+    {
+        case SORT_NONE:
+            return file_list;
+        case SORT_DISPLAY_NAME:
+            return g_list_sort(file_list, vnr_file_list_compare_dn);
+        case SORT_DISPLAY_NAME_DESC:
+            return g_list_sort(file_list, vnr_file_list_compare_dn_desc);
+        case SORT_MOD_TIME:
+            return g_list_sort(file_list, vnr_file_list_compare_mt);
+        case SORT_MOD_TIME_DESC:
+            return g_list_sort(file_list, vnr_file_list_compare_mt_desc);
+        default:
+            return file_list;
+    }
+}
 
 static GList *
-vnr_file_dir_content_to_list(gchar *path, gboolean sort, gboolean include_hidden)
+vnr_file_dir_content_to_list(gchar *path, SortType sort_type, gboolean include_hidden)
 {
     GList *file_list = NULL;
     GFile *file;
@@ -139,6 +179,7 @@ vnr_file_dir_content_to_list(gchar *path, gboolean sort, gboolean include_hidden
     f_enum = g_file_enumerate_children(file, G_FILE_ATTRIBUTE_STANDARD_NAME","
                                        G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME","
                                        G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE","
+                                       G_FILE_ATTRIBUTE_TIME_MODIFIED","
                                        G_FILE_ATTRIBUTE_STANDARD_IS_HIDDEN,
                                        G_FILE_QUERY_INFO_NONE,
                                        NULL, NULL);
@@ -152,6 +193,8 @@ vnr_file_dir_content_to_list(gchar *path, gboolean sort, gboolean include_hidden
 
         if(vnr_file_is_supported_mime_type(mimetype) && (include_hidden || !g_file_info_get_is_hidden (file_info)) ){
             vnr_file_set_display_name(vnr_file, (char*)g_file_info_get_display_name (file_info));
+
+            vnr_file->mod_time = g_file_info_get_modification_date_time(file_info);
 
             vnr_file->path =g_strjoin(G_DIR_SEPARATOR_S, path,
                                       vnr_file->display_name, NULL);
@@ -167,16 +210,12 @@ vnr_file_dir_content_to_list(gchar *path, gboolean sort, gboolean include_hidden
     g_file_enumerator_close (f_enum, NULL, NULL);
     g_object_unref (f_enum);
 
-    if(sort)
-        file_list = g_list_sort_with_data(file_list,
-                                          vnr_file_list_compare, NULL);
-
-    return file_list;
+    return vnr_file_list_sort(file_list, sort_type);
 }
 
 
 void
-vnr_file_load_single_uri(char *p_path, GList **file_list, gboolean include_hidden, GError **error)
+vnr_file_load_single_uri(char *p_path, GList **file_list, gboolean include_hidden, SortType sort_type, GError **error)
 {
     GFile *file;
     GFileInfo *fileinfo;
@@ -194,7 +233,7 @@ vnr_file_load_single_uri(char *p_path, GList **file_list, gboolean include_hidde
 
     if (filetype == G_FILE_TYPE_DIRECTORY)
     {
-        *file_list = vnr_file_dir_content_to_list(p_path, TRUE, include_hidden);
+        *file_list = vnr_file_dir_content_to_list(p_path, sort_type, include_hidden);
     }
     else
     {
@@ -202,7 +241,7 @@ vnr_file_load_single_uri(char *p_path, GList **file_list, gboolean include_hidde
         GList *current_position;
 
         parent = g_file_get_parent(file);
-        *file_list = vnr_file_dir_content_to_list(g_file_get_path(parent), TRUE, include_hidden);
+        *file_list = vnr_file_dir_content_to_list(g_file_get_path(parent), sort_type, include_hidden);
 
         g_object_unref(parent);
 
@@ -226,7 +265,7 @@ vnr_file_load_single_uri(char *p_path, GList **file_list, gboolean include_hidde
 }
 
 void
-vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hidden, GError **error)
+vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hidden, SortType sort_type, GError **error)
 {
     GFileType filetype;
     gchar *p_path;
@@ -238,6 +277,7 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
         GFileInfo *fileinfo = g_file_query_info (file, G_FILE_ATTRIBUTE_STANDARD_TYPE","
                                       G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME","
                                       G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE","
+                                      G_FILE_ATTRIBUTE_TIME_MODIFIED","
                                       G_FILE_ATTRIBUTE_STANDARD_IS_HIDDEN,
                                       0, NULL, error);
 
@@ -254,7 +294,7 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
 
         if (filetype == G_FILE_TYPE_DIRECTORY)
         {
-            *file_list = g_list_concat (*file_list, vnr_file_dir_content_to_list(p_path, FALSE, include_hidden));
+            *file_list = g_list_concat (*file_list, vnr_file_dir_content_to_list(p_path, SORT_NONE, include_hidden));
         }
         else
         {
@@ -268,6 +308,8 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
             if(vnr_file_is_supported_mime_type(mimetype) && (include_hidden || !g_file_info_get_is_hidden (fileinfo)) )
             {
                 vnr_file_set_display_name(new_vnrfile, (char*)g_file_info_get_display_name (fileinfo));
+                
+                new_vnrfile->mod_time = g_file_info_get_modification_date_time(fileinfo);
 
                 new_vnrfile->path = p_path;
 
@@ -280,5 +322,5 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
         uri_list = g_slist_next(uri_list);
     }
 
-    *file_list = g_list_sort_with_data(*file_list, vnr_file_list_compare, NULL);
+    *file_list = vnr_file_list_sort(*file_list, sort_type);
 }

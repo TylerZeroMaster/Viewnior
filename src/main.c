@@ -90,11 +90,11 @@ main (int argc, char *argv[])
     {
         if (g_slist_length(uri_list) == 1)
         {
-            vnr_file_load_single_uri (uri_list->data, &file_list, VNR_WINDOW(window)->prefs->show_hidden, &error);
+            vnr_file_load_single_uri (uri_list->data, &file_list, VNR_WINDOW(window)->prefs->show_hidden, SORT_DISPLAY_NAME, &error);
         }
         else
         {
-            vnr_file_load_uri_list (uri_list, &file_list, VNR_WINDOW(window)->prefs->show_hidden, &error);
+            vnr_file_load_uri_list (uri_list, &file_list, VNR_WINDOW(window)->prefs->show_hidden, SORT_DISPLAY_NAME, &error);
         }
 
         if(error != NULL && file_list != NULL)
