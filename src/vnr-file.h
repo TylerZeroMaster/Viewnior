@@ -38,10 +38,16 @@ typedef enum {
 
 typedef enum {
     SORT_NONE               = 0,
+
     SORT_DISPLAY_NAME       = 1<<1              | SORT_ASC,
     SORT_MOD_TIME           = 1<<2              | SORT_ASC,
+    SORT_SIZE               = 1<<3              | SORT_ASC,
+    SORT_TYPE               = 1<<4              | SORT_ASC,
+
     SORT_DISPLAY_NAME_DESC  = SORT_DISPLAY_NAME | SORT_DESC,
     SORT_MOD_TIME_DESC      = SORT_MOD_TIME     | SORT_DESC,
+    SORT_SIZE_DESC          = SORT_SIZE         | SORT_DESC,
+    SORT_TYPE_DESC          = SORT_TYPE         | SORT_DESC
 } SortType;
 
 typedef struct _VnrFile VnrFile;
@@ -53,6 +59,7 @@ struct _VnrFile {
     const gchar *display_name;
     const gchar *display_name_collate;
     const GDateTime *mod_time;
+    goffset size;
     const gchar *path;
 };
 

@@ -147,6 +147,32 @@ vnr_file_list_compare_mt_desc(gconstpointer a, gconstpointer b)
                                VNR_FILE(b)->mod_time) * -1;
 }
 
+static gint
+vnr_file_list_compare_sz(gconstpointer a, gconstpointer b)
+{
+    return VNR_FILE(a)->size - VNR_FILE(b)->size;
+}
+
+static gint
+vnr_file_list_compare_sz_desc(gconstpointer a, gconstpointer b)
+{
+    return (VNR_FILE(a)->size - VNR_FILE(b)->size) * -1;
+}
+
+static gint
+vnr_file_list_compare_tp(gconstpointer a, gconstpointer b)
+{
+    return g_strcmp0(g_strrstr(VNR_FILE(a)->display_name, "."),
+                     g_strrstr(VNR_FILE(b)->display_name, "."));
+}
+
+static gint
+vnr_file_list_compare_tp_desc(gconstpointer a, gconstpointer b)
+{
+    return g_strcmp0(g_strrstr(VNR_FILE(a)->display_name, "."),
+                     g_strrstr(VNR_FILE(b)->display_name, ".")) * -1;
+}
+
 GList *
 vnr_file_list_sort(GList *file_list, gint sort_type)
 {
@@ -154,14 +180,27 @@ vnr_file_list_sort(GList *file_list, gint sort_type)
     {
         case SORT_NONE:
             return file_list;
+
         case SORT_DISPLAY_NAME:
             return g_list_sort(file_list, vnr_file_list_compare_dn);
         case SORT_DISPLAY_NAME_DESC:
             return g_list_sort(file_list, vnr_file_list_compare_dn_desc);
+
         case SORT_MOD_TIME:
             return g_list_sort(file_list, vnr_file_list_compare_mt);
         case SORT_MOD_TIME_DESC:
             return g_list_sort(file_list, vnr_file_list_compare_mt_desc);
+
+        case SORT_SIZE:
+            return g_list_sort(file_list, vnr_file_list_compare_sz);
+        case SORT_SIZE_DESC:
+            return g_list_sort(file_list, vnr_file_list_compare_sz_desc);
+
+        case SORT_TYPE:
+            return g_list_sort(file_list, vnr_file_list_compare_tp);
+        case SORT_TYPE_DESC:
+            return g_list_sort(file_list, vnr_file_list_compare_tp_desc);
+
         default:
             return file_list;
     }
@@ -180,6 +219,7 @@ vnr_file_dir_content_to_list(gchar *path, SortType sort_type, gboolean include_h
                                        G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME","
                                        G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE","
                                        G_FILE_ATTRIBUTE_TIME_MODIFIED","
+                                       G_FILE_ATTRIBUTE_STANDARD_SIZE","
                                        G_FILE_ATTRIBUTE_STANDARD_IS_HIDDEN,
                                        G_FILE_QUERY_INFO_NONE,
                                        NULL, NULL);
@@ -195,6 +235,7 @@ vnr_file_dir_content_to_list(gchar *path, SortType sort_type, gboolean include_h
             vnr_file_set_display_name(vnr_file, (char*)g_file_info_get_display_name (file_info));
 
             vnr_file->mod_time = g_file_info_get_modification_date_time(file_info);
+            vnr_file->size = g_file_info_get_size(file_info);
 
             vnr_file->path =g_strjoin(G_DIR_SEPARATOR_S, path,
                                       vnr_file->display_name, NULL);
@@ -278,6 +319,7 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
                                       G_FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME","
                                       G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE","
                                       G_FILE_ATTRIBUTE_TIME_MODIFIED","
+                                      G_FILE_ATTRIBUTE_STANDARD_SIZE","
                                       G_FILE_ATTRIBUTE_STANDARD_IS_HIDDEN,
                                       0, NULL, error);
 
@@ -308,8 +350,9 @@ vnr_file_load_uri_list (GSList *uri_list, GList **file_list, gboolean include_hi
             if(vnr_file_is_supported_mime_type(mimetype) && (include_hidden || !g_file_info_get_is_hidden (fileinfo)) )
             {
                 vnr_file_set_display_name(new_vnrfile, (char*)g_file_info_get_display_name (fileinfo));
-                
+
                 new_vnrfile->mod_time = g_file_info_get_modification_date_time(fileinfo);
+                new_vnrfile->size = g_file_info_get_size(fileinfo);
 
                 new_vnrfile->path = p_path;
 
